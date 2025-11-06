@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>IOT - Giám sát mực nước</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --txt:#e5e7eb; --acc:#22d3ee; --mut:#94a3b8; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--txt); }
+    header { padding:16px 24px; border-bottom:1px solid #1f2937; display:flex; justify-content:space-between; align-items:center; }
+    header h1 { margin:0; font-size:18px; }
+    header .right button { background:#ef4444; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
+    main { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+    .card { background: var(--card); border:1px solid #1f2937; border-radius:12px; padding:16px; margin-bottom:16px; }
+    .muted { color: var(--mut); }
+    .row { display:flex; gap:16px; flex-wrap: wrap; }
+    .col { flex:1 1 300px; }
+    input, button { padding:10px 12px; border-radius:8px; border:1px solid #374151; background:#0b1220; color:var(--txt); }
+    button { cursor:pointer; background: #2563eb; border-color:#2563eb; }
+    button.secondary { background: #374151; border-color:#4b5563; }
+    .value { font-size: 40px; font-weight: 700; color: var(--acc); }
+    iframe { width: 100%; height: 480px; border:0; border-radius: 12px; background: #0b1220; }
+    .hidden { display:none; }
+    .ok { color:#10b981; }
+    .err { color:#ef4444; }
+    pre { margin:0; white-space: pre-wrap; word-break: break-word; background:#0b1220; padding:12px; border-radius:8px; border:1px solid #374151; }
+    .toolbar { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .toolbar .muted { font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Giám sát mực nước (IoT)</h1>
+    <div class="right">
+      <span id="userInfo" class="muted"></span>
+      <button id="logoutBtn" class="hidden">Đăng xuất</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Đăng nhập -->
+    <section id="loginCard" class="card">
+      <h3>Đăng nhập</h3>
+      <p class="muted">Tài khoản mặc định: admin / admin123 (hãy đổi sau khi vào được hệ thống).</p>
+      <div class="row">
+        <div class="col">
+          <label>Tên đăng nhập</label>
+          <input id="username" placeholder="username" autocomplete="username" />
+        </div>
+        <div class="col">
+          <label>Mật khẩu</label>
+          <input id="password" type="password" placeholder="password" autocomplete="current-password" />
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button id="loginBtn">Đăng nhập</button>
+        <span id="loginMsg" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="dashCard" class="card hidden">
+      <div class="row">
+        <div class="col">
+          <h3>Mực nước hiện tại</h3>
+          <div id="waterValue" class="value">--.-- m</div>
+          <div id="updatedAt" class="muted">Cập nhật: --</div>
+          <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="toggleChartBtn" class="secondary">Hiện biểu đồ</button>
+            <button id="toggleRawBtn" class="secondary">Hiện JSON thô</button>
+          </div>
+        </div>
+        <div class="col">
+          <h3>Trạng thái</h3>
+          <div id="status" class="muted">Đang chờ dữ liệu...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Grafana iframe -->
+    <section id="chartCard" class="card hidden">
+      <h3>Biểu đồ lịch sử (Grafana)</h3>
+      <iframe id="grafanaFrame" src="/grafana/" loading="lazy"></iframe>
+    </section>
+
+    <!-- RAW JSON -->
+    <section id="rawCard" class="card hidden">
+      <div class="toolbar">
+        <h3 style="margin:0;">JSON thô từ /api/latest</h3>
+        <span id="rawInfo" class="muted">(cập nhật mỗi 3 giây)</span>
+        <button id="copyRawBtn" class="secondary" title="Sao chép JSON">Copy</button>
+      </div>
+      <pre id="rawJson">{}</pre>
+    </section>
+  </main>
+
+  <script>
+    const $$ = s => document.querySelector(s);
+    const loginCard = $$('#loginCard');
+    const dashCard = $$('#dashCard');
+    const chartCard = $$('#chartCard');
+    const rawCard = $$('#rawCard');
+    const userInfo = $$('#userInfo');
+    const logoutBtn = $$('#logoutBtn');
+    const loginBtn = $$('#loginBtn');
+    const loginMsg = $$('#loginMsg');
+    const toggleChartBtn = $$('#toggleChartBtn');
+    const toggleRawBtn = $$('#toggleRawBtn');
+    const copyRawBtn = $$('#copyRawBtn');
+    const rawJson = $$('#rawJson');
+    const waterValue = $$('#waterValue');
+    const updatedAt = $$('#updatedAt');
+    const statusEl = $$('#status');
+
+    async function sha256Hex(str) {
+      const enc = new TextEncoder().encode(str);
+      const h = await crypto.subtle.digest('SHA-256', enc);
+      return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
+    }
+    function showLogin(){ loginCard.classList.remove('hidden'); dashCard.classList.add('hidden'); chartCard.classList.add('hidden'); rawCard.classList.add('hidden'); logoutBtn.classList.add('hidden'); userInfo.textContent=''; }
+    function showDash(user){ loginCard.classList.add('hidden'); dashCard.classList.remove('hidden'); logoutBtn.classList.remove('hidden'); userInfo.textContent = `Xin chào, ${user.username} (${user.role})`; }
+
+    async function apiLatest(){
+      const res = await fetch('/api/latest', { credentials: 'include' });
+      if (!res.ok) throw new Error('Unauthorized');
+      return res.json();
+    }
+
+    let pollTimer=null;
+    async function startPolling(){
+      async function tick(){
+        try{
+          const data = await apiLatest();
+          // Hiển thị JSON thô
+          rawJson.textContent = JSON.stringify(data, null, 2);
+
+          if (data.ok){
+            const m = (data.metrics||[]).find(x=>x.metric==='water_level');
+            if (m){
+              waterValue.textContent = `${Number(m.value).toFixed(2)} m`;
+              updatedAt.textContent = `Cập nhật: ${new Date(m.updated_at).toLocaleString()}`;
+              statusEl.innerHTML = '<span class="ok">Nhận dữ liệu mỗi 3s từ Node‑RED</span>';
+            }else{
+              statusEl.innerHTML = '<span class="err">Chưa có dữ liệu mực nước</span>';
+            }
+            showDash(data.user);
+          }
+        }catch(e){
+          statusEl.innerHTML = '<span class="err">Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.</span>';
+          clearInterval(pollTimer); pollTimer=null; showLogin();
+        }
+      }
+      await tick();
+      if (!pollTimer) pollTimer=setInterval(tick,3000);
+    }
+
+    loginBtn.addEventListener('click', async ()=>{
+      const username = $$('#username').value.trim();
+      const password = $$('#password').value;
+      loginMsg.textContent='';
+      try{
+        const password_sha256 = await sha256Hex(password);
+        const res = await fetch('/api/login', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          credentials:'include',
+          body: JSON.stringify({ username, password_sha256 })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok){ loginMsg.innerHTML='<span class="err">Sai tài khoản hoặc mật khẩu</span>'; return; }
+        loginMsg.innerHTML='<span class="ok">Đăng nhập thành công</span>';
+        await startPolling();
+      }catch(e){ loginMsg.innerHTML='<span class="err">Lỗi kết nối</span>'; }
+    });
+
+    logoutBtn.addEventListener('click', async ()=>{
+      try{ await fetch('/api/logout',{credentials:'include'}); }catch{}
+      showLogin(); if (pollTimer){ clearInterval(pollTimer); pollTimer=null; }
+    });
+
+    toggleChartBtn.addEventListener('click', ()=>{
+      if (chartCard.classList.contains('hidden')){ chartCard.classList.remove('hidden'); toggleChartBtn.textContent='Ẩn biểu đồ'; }
+      else { chartCard.classList.add('hidden'); toggleChartBtn.textContent='Hiện biểu đồ'; }
+    });
+
+    toggleRawBtn.addEventListener('click', ()=>{
+      if (rawCard.classList.contains('hidden')){ rawCard.classList.remove('hidden'); toggleRawBtn.textContent='Ẩn JSON thô'; }
+      else { rawCard.classList.add('hidden'); toggleRawBtn.textContent='Hiện JSON thô'; }
+    });
+
+    copyRawBtn.addEventListener('click', async ()=>{
+      try{
+        await navigator.clipboard.writeText(rawJson.textContent || '{}');
+        copyRawBtn.textContent = 'Đã copy';
+        setTimeout(()=> copyRawBtn.textContent='Copy', 1200);
+      }catch{ /* ignore */ }
+    });
+
+    (async()=>{ try{ await startPolling(); }catch{ showLogin(); } })();
+  </script>
+</body>
+</html>
