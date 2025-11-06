@@ -102,12 +102,49 @@ login_sessions: nơi lưu phiên đăng nhập để duy trì đăng nhập mộ
 latest_metrics: nơi lưu giá trị “mới nhất” của các thông số giám sát, phục vụ hiển thị nhanh trên SPA.
  <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a6d7d0b7-1d0d-4d94-8f70-2a365fa67a14" />
 
+# Hình 9: 
+Lập trình backend trên Node‑RED (IoT + xác thực)
+Ý nghĩa:
+Thiết kế các luồng xử lý dữ liệu IoT và các điểm cuối (endpoint) phục vụ đăng nhập/phiên làm việc.
+Kết nối tới MariaDB để lưu “giá trị mới nhất” và tới InfluxDB để ghi lịch sử theo chuẩn line protocol.
+Nhận xét trên ảnh:
+Nhóm luồng “IOT Water Level” gồm các node function “Generate random water_level”, “Build SQL upsert latest_metrics”, “Build Influx v2 line protocol” kèm các node HTTP (POST/…).
+Nhóm xác thực: “Build SELECT users” → “Query user” → “Create session or 4xx”; kiểm tra phiên “Parse Cookie & SELECT session” → “Check session”; thoát phiên “Parse token & DELETE” → “Delete session” → “Expire cookie”.
+Các node cơ sở dữ liệu hiển thị trạng thái OK/connected, biểu thị việc kết nối đang hoạt động.
  <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d48d4916-8082-40db-b41b-64e7c5d9ee07" />
 
+# Hình 10: 
+Xem cấu trúc CSDL iotapp trên phpMyAdmin
+Ý nghĩa:
+Khẳng định cơ sở dữ liệu quan hệ cho phần đăng nhập và phần “latest metrics” đã được tạo đúng tên và engine.
+Nhận xét trên ảnh:
+Schema iotapp có 3 bảng: latest_metrics, login_sessions, users.
+Engine InnoDB, collation utf8mb4_uca1400_ai_ci; mỗi bảng có các thao tác Duyệt/Cấu trúc/Chèn… sẵn sàng.
+Đây là nơi Node‑RED thực hiện SELECT/UPSERT/DELETE cho người dùng, phiên, và giá trị đo mới nhất.
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/15bbf618-3e6f-43e6-b4c8-7a03569608bf" />
 
+# Hình 11: 
+Giao diện SPA — trang đăng nhập
+Ý nghĩa:
+Frontend dạng Single Page Application (index.html) cung cấp form đăng nhập, chuẩn bị lấy token/phiên từ backend.
+Nhận xét trên ảnh:
+Tiêu đề “Giám sát mực nước (IoT)”; form gồm “Tên đăng nhập”, “Mật khẩu”, nút “Đăng nhập”.
+Thông điệp tài khoản mặc định “admin / admin123” hiển thị trên giao diện; URL truy cập http://localhost:8081 (được phục vụ qua Nginx).
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/87fea984-ac11-4c11-8aac-a9024292ce27" />
 
+# Hình 12: 
+Giao diện SPA — bảng điều khiển sau đăng nhập
+
+Ý nghĩa:
+Thể hiện luồng hoàn chỉnh: người dùng đã đăng nhập, frontend gọi API của Node‑RED, hiển thị dữ liệu hiện tại và JSON trả về.
+Nhận xét trên ảnh:
+Góc phải có “Xin chào, admin (admin)” và nút “Đăng xuất” cho thấy phiên đăng nhập đang có hiệu lực.
+Khối “Mức nước hiện tại” hiển thị 3.07 m, kèm nhãn “Nhận dữ liệu mỗi 3s từ Node‑RED”; có nút “Hiện biểu đồ/Ẩn JSON thô”.
+Khối “JSON thô từ /api/latest” hiển thị mẫu phản hồi:
+ok: true
+user: { username: "admin", role: "admin" }
+metrics: [ { metric: "water_level", value: 3.07, updated_at: "2025‑11‑06T03:33:36.000Z" } ]
+URL vẫn ở http://localhost:8081, phù hợp mô hình SPA chạy sau Nginx và gọi API backend.
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/e9b5a0bb-66fa-42b6-b6d7-c4fd9d8af2d5" />
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/ac1aa66b-c3f8-4ea5-b81e-3947486dddef" />  
