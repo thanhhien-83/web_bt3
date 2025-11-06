@@ -147,7 +147,26 @@ metrics: [ { metric: "water_level", value: 3.07, updated_at: "2025‑11‑06T03:
 URL vẫn ở http://localhost:8081, phù hợp mô hình SPA chạy sau Nginx và gọi API backend.
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/e9b5a0bb-66fa-42b6-b6d7-c4fd9d8af2d5" />
 
+# Hình 13: 
+Trình duyệt Cốc Cốc đang mở trang đăng nhập của ứng dụng “Giám sát mực nước (IoT)”.
+Thanh địa chỉ: huathithanhhien.com:8081 hiển thị cảnh báo “Không bảo mật”.
+Giao diện nền tối, khối đăng nhập nằm giữa trang:
+Dòng ghi chú: “Tài khoản mặc định: admin / admin123 (hãy đổi sau khi vào được hệ thống).”
+Hai ô nhập: “Tên đăng nhập” và “Mật khẩu”.
+Nút màu xanh “Đăng nhập”.
+Ở phía sau (bên trái) là cửa sổ Docker Desktop với thanh menu: Containers, Images, Volumes, Kubernetes, Builds…
+Thanh tác vụ Windows ở dưới cùng hiển thị nhiều biểu tượng công cụ lập trình.
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/ac1aa66b-c3f8-4ea5-b81e-3947486dddef" />  
 
+# Hình 14: 
+Giao diện Node‑RED Editor đang mở flow có tên “IOT Water Level”.
+Truy cập qua URL reverse proxy: huathithanhhien.com:8081/nodered/#flow/…
+Bên trái là “palette” Node‑RED (inject, debug, function, switch, …).
+Trên canvas có các luồng chính:
+Luồng định kỳ “Every 3s” → “Generate random water_level” → các function “Build SQL upsert latest_metrics” và “Build Influx v2 line protocol” (ghi giá trị mới nhất vào MariaDB và lịch sử vào InfluxDB).
+Nhóm HTTP POST /api/login: “Build SELECT users” → node DB “Query user” (trạng thái OK) → tạo session.
+Nhóm HTTP GET /api/latest: “Parse Cookie & SELECT session” → “Check session” (OK) → trả dữ liệu.
+Nhóm HTTP DELETE /api/logout: “Parse token & DELETE” → “Delete session” (OK) → hết hạn cookie.
+Bên phải là khung “info” hiển thị thông tin flow và ID flow. Docker Desktop cũng xuất hiện ở nền bên trái, thanh tác vụ Windows ở dưới cùng.
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d6adcc64-9be8-4445-910f-322cad40bb00" />
 
